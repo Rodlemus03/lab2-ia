@@ -60,7 +60,7 @@ class Symbol(Sentence):
         try:
             return bool(model[self.name])
         except KeyError:
-            raise EvaluationException(f"variable {self.name} not in model")
+            raise Exception(f"variable {self.name} not in model")
 
     def formula(self):
         return self.name
@@ -118,8 +118,8 @@ class And(Sentence):
         self.conjuncts.append(conjunct)
 
     def evaluate(self, model):
-        # Implementar logica de AND
-        return True 
+        # AND es verdadero solo si TODOS los conjuntos son verdaderos
+        return all(conjunct.evaluate(model) for conjunct in self.conjuncts)
 
     def formula(self):
         if len(self.conjuncts) == 1:
@@ -150,8 +150,8 @@ class Or(Sentence):
         return f"Or({disjuncts})"
 
     def evaluate(self, model):
-        # Implementar logica de OR
-        return True
+        # OR es verdadero si AL MENOS UNO de los disjuntos es verdadero
+        return any(disjunct.evaluate(model) for disjunct in self.disjuncts)
 
     def formula(self):
         if len(self.disjuncts) == 1:
@@ -182,8 +182,9 @@ class Implication(Sentence):
         return f"Implication({self.antecedent}, {self.consequent})"
 
     def evaluate(self, model):
-        # Implementar logica de IMPLICATION
-        return True
+        # Implicación: p → q es falso solo cuando p es verdadero y q es falso
+        # Equivalente a: not p or q
+        return (not self.antecedent.evaluate(model)) or self.consequent.evaluate(model)
 
     def formula(self):
         antecedent = Sentence.parenthesize(self.antecedent.formula())
@@ -213,8 +214,9 @@ class Biconditional(Sentence):
         return f"Biconditional({self.left}, {self.right})"
 
     def evaluate(self, model):
-        # Implementar logica de BICONDITIONAL
-        return True
+        # Bicondicional: p ↔ q es verdadero si p y q tienen el mismo valor de verdad
+        # Equivalente a: (p → q) ∧ (q → p)
+        return self.left.evaluate(model) == self.right.evaluate(model)
 
     def formula(self):
         left = Sentence.parenthesize(str(self.left))
@@ -231,19 +233,33 @@ def model_check(knowledge, query):
     def check_all(knowledge, query, symbols, model):
         """Checks if knowledge base entails query, given a particular model."""
 
-        # If model has an assignment for each symbol
+        # Si el modelo ya tiene asignaciones para todos los símbolos
         if not symbols:
             # CASO BASE 
-            # If knowledge base is true in model, then query must also be true
+            # Si la base de conocimiento es verdadera en el modelo, entonces la consulta también debe ser verdadera
             if knowledge.evaluate(model):
                 return query.evaluate(model)
             return True
         else:
-            # Implemente función recursiva
-            return True 
+            # Implementación recursiva
+            # Tomar el primer símbolo que aún no tiene asignación
+            remaining = symbols.copy()
+            p = remaining.pop()
+            
+            # Crear dos modelos: uno con p = True y otro con p = False
+            model_true = model.copy()
+            model_true[p] = True
+            
+            model_false = model.copy()
+            model_false[p] = False
+            
+            # Verificar recursivamente ambos modelos
+            # Para que query sea consecuencia de knowledge, debe ser verdad en todos los modelos donde knowledge es verdad
+            return (check_all(knowledge, query, remaining, model_true) and
+                    check_all(knowledge, query, remaining, model_false))
 
-
+    # Obtener todos los símbolos de la base de conocimiento y la consulta
     symbols = set.union(knowledge.symbols(), query.symbols())
 
-    # Check that knowledge entails query
+    # Verificar que la base de conocimiento implica la consulta
     return check_all(knowledge, query, symbols, dict())
